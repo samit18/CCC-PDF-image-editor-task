@@ -4,6 +4,7 @@ import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class CompressedPdfPage extends StatefulWidget {
   @override
@@ -13,9 +14,9 @@ class CompressedPdfPage extends StatefulWidget {
 class _CompressedPdfPageState extends State<CompressedPdfPage> {
   File? _selectedPdf;
   File? _compressedPdf;
-  double _length = 210; 
-  double _width = 297;  
-  double _height = 0.0; 
+  double _length = 210;
+  double _width = 297;
+  double _height = 0.0;
 
   final TextEditingController _lengthController = TextEditingController();
   final TextEditingController _widthController = TextEditingController();
@@ -23,10 +24,7 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
 
   Future<void> _pickPdf() async {
     try {
-      final params = OpenFileDialogParams(
-        dialogType: OpenFileDialogType.document,
-      );
-
+      final params = OpenFileDialogParams(dialogType: OpenFileDialogType.document);
       final filePath = await FlutterFileDialog.pickFile(params: params);
 
       if (filePath != null) {
@@ -51,19 +49,21 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
     }
 
     try {
-      final Directory tempDir = await getTemporaryDirectory();
-      final String outputPath = "${tempDir.path}/compressed.pdf";
-
+      await _checkAndRequestPermission();
+      Directory? downloadsDirectory = await getExternalStorageDirectory();
+      String outputPath = "${downloadsDirectory!.path}/compressed.pdf";
+      
       final pdfBytes = await _selectedPdf!.readAsBytes();
       final PdfDocument pdfDoc = PdfDocument(inputBytes: pdfBytes);
 
       for (int i = 0; i < pdfDoc.pages.count; i++) {
         final page = pdfDoc.pages[i];
-
         final pageSize = page.size;
         double scaleX = _width / pageSize.width;
         double scaleY = _length / pageSize.height;
-
+        if (_height > 0) {
+          scaleY = _height / pageSize.height;
+        }
         page.graphics.scale(scaleX, scaleY);
       }
 
@@ -71,16 +71,13 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
       pdfDoc.dispose();
 
       final compressedFile = File(outputPath)..writeAsBytesSync(compressedBytes);
-
       setState(() {
         _compressedPdf = compressedFile;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("PDF compressed and resized successfully!")),
+        SnackBar(content: Text("PDF compressed and saved successfully.")),
       );
-
-      _saveCompressedPdf(compressedFile);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error compressing file: $e")),
@@ -88,30 +85,21 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
     }
   }
 
-  Future<void> _saveCompressedPdf(File compressedFile) async {
-    try {
-      final params = SaveFileDialogParams(
-        fileName: "compressed.pdf",
-        data: await compressedFile.readAsBytes(),
-      );
-
-      final savePath = await FlutterFileDialog.saveFile(params: params);
-
-      if (savePath != null) {
+  Future<void> _checkAndRequestPermission() async {
+    if (Platform.isAndroid) {
+      if (await Permission.storage.isGranted) return;
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("PDF saved successfully at: $savePath")),
+          SnackBar(content: Text("Permission denied. Enable storage access in settings.")),
         );
+        throw Exception("Storage permission denied");
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving file: $e")),
-      );
     }
   }
 
   Widget _buildPdfViewer(File? file) {
     if (file == null) return Center(child: Text("No PDF selected or generated."));
-
     return PDFView(
       filePath: file.path,
       enableSwipe: true,
@@ -125,66 +113,39 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Compressed PDF Page", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Text("PDF Compressor", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.deepPurple,
+        centerTitle: true,
       ),
       body: Container(
-        color: Colors.grey[100],
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.deepPurple.shade200, Colors.deepPurple.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: _pickPdf,
-              child: Text("Pick PDF", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              icon: Icon(Icons.upload_file, color: Colors.white),
+              label: Text("Pick PDF", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: EdgeInsets.symmetric(vertical: 14, horizontal: 28)),
             ),
             SizedBox(height: 16),
-            TextField(
-              controller: _lengthController,
-              decoration: InputDecoration(
-                labelText: 'Length (mm)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                setState(() {
-                  _length = double.tryParse(value) ?? 210;
-                });
-              },
-            ),
+            _buildTextField("Length (mm)", _lengthController, (value) => _length = double.tryParse(value) ?? 210),
             SizedBox(height: 16),
-            TextField(
-              controller: _widthController,
-              decoration: InputDecoration(
-                labelText: 'Width (mm)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                setState(() {
-                  _width = double.tryParse(value) ?? 297;
-                });
-              },
-            ),
+            _buildTextField("Width (mm)", _widthController, (value) => _width = double.tryParse(value) ?? 297),
             SizedBox(height: 16),
-            TextField(
-              controller: _heightController,
-              decoration: InputDecoration(
-                labelText: 'Height (optional, mm)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                setState(() {
-                  _height = double.tryParse(value) ?? 0.0;
-                });
-              },
-            ),
+            _buildTextField("Height (optional, mm)", _heightController, (value) => _height = double.tryParse(value) ?? 0.0),
             SizedBox(height: 16),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: _compressPdf,
-              child: Text("Compress PDF", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              icon: Icon(Icons.compress, color: Colors.white),
+              label: Text("Compress PDF", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: EdgeInsets.symmetric(vertical: 14, horizontal: 28)),
             ),
             SizedBox(height: 16),
@@ -192,6 +153,20 @@ class _CompressedPdfPageState extends State<CompressedPdfPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, Function(String) onChanged) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      keyboardType: TextInputType.number,
+      onChanged: onChanged,
     );
   }
 }

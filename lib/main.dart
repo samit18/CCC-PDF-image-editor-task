@@ -1,10 +1,6 @@
-// ignore_for_file: unused_import
-
 import 'package:flutter/material.dart';
-import 'package:new_app/pages/convert_image_format_page.dart'; 
+import 'package:new_app/pages/convert_image_format_page.dart';
 import 'package:new_app/pages/convert_image_formate_page.dart';
-import 'package:new_app/pages/Image%20Format%20Converter.dart'; 
-
 import 'package:new_app/pages/image_to_pdf.dart';
 import 'package:new_app/pages/compress_pdf_page.dart';
 import 'package:new_app/pages/compress_image_page.dart';
@@ -20,16 +16,24 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'PDF & Image Editor',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+        primarySwatch: Colors.deepPurple,
+        scaffoldBackgroundColor: Colors.grey[100],
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.deepPurple,
+          elevation: 0,
+          centerTitle: true,
+        ),
+      ),
       initialRoute: '/',
       routes: {
         '/': (context) => const HomePage(),
         '/compressPdf': (context) => CompressedPdfPage(),
         '/imageToPdf': (context) => ImageToPdfPage(),
-        '/compressImage': (context) => const CompressImagePage(),
+        '/compressImage': (context) =>const  CompressImagePage(),
         '/convertImageFormat': (context) => const FileConversionPage(),
-        '/imageFormatConverter': (context) => ImageConverterPage(),
         '/editPdf': (context) => const EditPdfPage(),
       },
     );
@@ -43,84 +47,48 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF & Image Editor'),
-        backgroundColor: Colors.deepPurple,  
+        title: const Text(
+          'PDF & Image Editor',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
       ),
-      body: ListView(
-        children: [
-          _buildListTile(
-            context,
-            'Compress PDF',
-            Colors.blue,
-            '/compressPdf',
-          ),
-          _buildListTile(
-            context,
-            'Convert Images to PDF',
-            Colors.green, 
-            '/imageToPdf',
-          ),
-          _buildListTile(
-            context,
-            'Compress Images',
-            Colors.orange, 
-            '/compressImage',
-          ),
-          _buildListTile(
-            context,
-            'Convert Image Format',
-            Colors.teal, 
-            '/convertImageFormat',
-          ),
-          _buildListTile(
-            context,
-            'Image Format Converter',
-            Colors.purple, 
-            '/imageFormatConverter',
-          
-          ),
-          _buildListTile(
-            context,
-            'Edit PDF',
-            Colors.red,
-            '/editPdf',
-          ),
-        ],
-      ),
-    );
-  }
-
-  
-  Widget _buildListTile(BuildContext context, String title, Color backgroundColor, String route) {
-    return Container(
-      margin: const EdgeInsets.all(10),
-      child: MaterialButton(
-        onPressed: () => Navigator.pushNamed(context, route),
-        color: backgroundColor,
-        height: 60,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white, 
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          children: [
+            _buildGridTile(context, 'Compress PDF', Icons.picture_as_pdf, Colors.blue, '/compressPdf'),
+            _buildGridTile(context, 'Convert to PDF', Icons.picture_in_picture_alt, Colors.green, '/imageToPdf'),
+            _buildGridTile(context, 'Compress Images', Icons.image, Colors.orange, '/compressImage'),
+            _buildGridTile(context, 'Convert Image Format', Icons.transform, Colors.teal, '/convertImageFormat'),
+            _buildGridTile(context, 'Edit PDF', Icons.edit, Colors.red, '/editPdf'),
+          ],
         ),
       ),
     );
   }
-}
 
-class ConvertPdfFormatPage extends StatelessWidget {
-  const ConvertPdfFormatPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Convert PDF Format')),
-      body: const Center(
-        child: Text('This is the Convert PDF Format Page'),
+  Widget _buildGridTile(BuildContext context, String title, IconData icon, Color color, String route) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        color: color,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 40, color: Colors.white),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }

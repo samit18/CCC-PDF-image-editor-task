@@ -3,6 +3,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class EditPdfPage extends StatefulWidget {
   const EditPdfPage({super.key});
@@ -29,53 +30,62 @@ class _EditPdfPageState extends State<EditPdfPage> {
         title: const Text('Edit PDF'),
         backgroundColor: Colors.deepPurple,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              ElevatedButton(
-                onPressed: _pickPdf,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.lightBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                ),
-                child: const Text('Pick an Existing PDF'),
-              ),
-              const SizedBox(height: 20),
-              if (isPdfLoaded) ...[
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.purple.shade200, Colors.deepPurple.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
                 ElevatedButton(
-                  onPressed: _addTextToPdf,
+                  onPressed: _pickPdf,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: Colors.lightBlue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                   ),
-                  child: const Text('Add Text to PDF'),
+                  child: const Text('Pick an Existing PDF'),
                 ),
                 const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _requestCropDimensions,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                if (isPdfLoaded) ...[
+                  ElevatedButton(
+                    onPressed: _addTextToPdf,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Add Text to PDF'),
                   ),
-                  child: const Text('Crop PDF Page'),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _openEditedPdf,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _requestCropDimensions,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Crop PDF Page'),
                   ),
-                  child: const Text('Open Edited PDF'),
-                ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _openEditedPdf,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Open Edited PDF'),
+                  ),
+                ],
+                if (isProcessing) const CircularProgressIndicator(),
               ],
-              if (isProcessing) const CircularProgressIndicator(),
-            ],
+            ),
           ),
         ),
       ),
@@ -118,12 +128,15 @@ class _EditPdfPageState extends State<EditPdfPage> {
       );
 
       final List<int> updatedBytes = await document.save();
-      await file.writeAsBytes(updatedBytes);
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      final savedPdfPath = '${downloadDir.path}/edited_pdf_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      await File(savedPdfPath).writeAsBytes(updatedBytes);
 
       document.dispose();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Text added to PDF!')),
+        SnackBar(content: Text('Text added to PDF and saved to Downloads folder!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,48 +213,6 @@ class _EditPdfPageState extends State<EditPdfPage> {
     );
   }
 
-  Future<void> _cropPdf() async {
-    setState(() => isProcessing = true);
-
-    try {
-      final File file = File(selectedPdfPath!);
-      final PdfDocument document = PdfDocument(inputBytes: await file.readAsBytes());
-
-      final PdfPage originalPage = document.pages[0];
-      final PdfDocument croppedDocument = PdfDocument();
-
-      // Correcting the cropping process
-      final PdfPage newPage = croppedDocument.pages.add();
-
-      // Use Offset for positioning and drawing the template
-      final PdfTemplate template = originalPage.createTemplate();
-      newPage.graphics.drawPdfTemplate(
-        template,
-        Offset(cropLeft!, cropTop!),  // Correct the use of Offset for drawing
-        Size(cropWidth!, cropHeight!),
-      );
-
-      final List<int> updatedBytes = await croppedDocument.save();
-      await file.writeAsBytes(updatedBytes);
-
-      document.dispose();
-      croppedDocument.dispose();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF Page Cropped Successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() {
-        isProcessing = false;
-        cropRequested = false;
-      });
-    }
-  }
-
   Future<String> _getUserInput() async {
     String input = '';
     await showDialog(
@@ -254,14 +225,22 @@ class _EditPdfPageState extends State<EditPdfPage> {
             decoration: const InputDecoration(hintText: 'Type your text here...'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Submit')),
+            TextButton(onPressed: () => Navigator.pop(context, ''), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, input);
+              },
+              child: const Text('Submit'),
+            ),
           ],
         );
       },
     );
     return input;
   }
+}
+
+class _cropPdf {
 }
 
 class PdfViewerPage extends StatelessWidget {

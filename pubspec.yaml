@@ -43,6 +43,10 @@ dependencies:
   file_picker: ^5.0.0
   url_launcher: ^6.3.1
   permission_handler: ^11.3.1
+  flutter_archive: ^6.0.3
+  open_file: ^3.5.10
+  flutter_widget_from_html: ^0.15.3
+  android_intent_plus: ^5.3.0
   
   
   

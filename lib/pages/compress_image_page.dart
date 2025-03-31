@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,9 +18,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Image Compression',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        dialogBackgroundColor: Colors.deepPurple,
       ),
       home: const CompressImagePage(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -47,180 +49,146 @@ class _CompressImagePageState extends State<CompressImagePage> {
     super.dispose();
   }
 
-  
   Future<void> _pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
     if (pickedFile != null) {
       setState(() {
         _originalImage = File(pickedFile.path);
-        _compressedImage = null; 
+        _compressedImage = null;
       });
     }
   }
 
-
   Future<void> _compressImage() async {
-  if (_originalImage == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please pick an image first!')),
-    );
-    return;
-  }
-
-  setState(() {
-    _isCompressing = true;
-  });
-
-  try {
-    final width = int.tryParse(_widthController.text) ?? 600;
-    final height = int.tryParse(_heightController.text);
-
-    
-    final imageBytes = await _originalImage!.readAsBytes();
-    final img.Image? image = img.decodeImage(Uint8List.fromList(imageBytes));
-
-    if (image == null) {
-      throw Exception('Could not decode the image.');
+    if (_originalImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please pick an image first!')),
+      );
+      return;
     }
 
-    
-    final compressedImage = height != null
-        ? img.copyResize(image, width: width, height: height)
-        : img.copyResize(image, width: width);
-
-    
-    final directory = await getTemporaryDirectory();
-    final compressedFilePath = '${directory.path}/compressed_image.jpg';
-
-    final compressedFile = File(compressedFilePath)
-      ..writeAsBytesSync(img.encodeJpg(compressedImage));
-
     setState(() {
-      _compressedImage = compressedFile;
+      _isCompressing = true;
     });
 
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Image compressed and saved!')),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('File path: $compressedFilePath')),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error compressing image: $e')),
-    );
-  } finally {
-    setState(() {
-      _isCompressing = false;
-    });
+    try {
+      final width = int.tryParse(_widthController.text) ?? 600;
+      final height = int.tryParse(_heightController.text);
+      final imageBytes = await _originalImage!.readAsBytes();
+      final img.Image? image = img.decodeImage(Uint8List.fromList(imageBytes));
+
+      if (image == null) {
+        throw Exception('Could not decode the image.');
+      }
+
+      final compressedImage = height != null
+          ? img.copyResize(image, width: width, height: height)
+          : img.copyResize(image, width: width);
+
+      final directory = Directory('/storage/emulated/0/Download');
+      if (!directory.existsSync()) {
+        directory.createSync(recursive: true);
+      }
+
+      String timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final compressedFilePath = '${directory.path}/compressed_image_$timestamp.jpg';
+      final compressedFile = File(compressedFilePath)..writeAsBytesSync(img.encodeJpg(compressedImage));
+
+      setState(() {
+        _compressedImage = compressedFile;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Image saved to Download folder: compressed_image_$timestamp.jpg')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error compressing image: $e')),
+      );
+    } finally {
+      setState(() {
+        _isCompressing = false;
+      });
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Image Compression Example'),
-        backgroundColor: Colors.deepPurple, 
+        title: const Text('Image Compression', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple.shade200, Colors.deepPurple.shade400],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        centerTitle: true,
+        elevation: 5,
       ),
-      backgroundColor: Colors.purple[50], 
-      body: Center(
-        child: SingleChildScrollView(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.purple.shade200, Colors.deepPurple.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              
-              _originalImage != null
-                  ? Column(
-                      children: [
-                        const Text('Original Image:', style: TextStyle(color: Colors.black)),
-                        Image.file(_originalImage!, height: 200),
-                      ],
-                    )
-                  : const Text('No image selected.', style: TextStyle(fontSize: 16, color: Colors.black)),
-
-              const SizedBox(height: 20),
-
-              
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Column(
+              if (_originalImage != null)
+                Column(
                   children: [
-                    TextField(
-                      controller: _widthController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Width (default: 600)',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.all(10),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _heightController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Height (optional)',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.all(10),
-                      ),
+                    const Text('Original Image:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.file(_originalImage!, height: 200),
                     ),
                   ],
                 ),
-              ),
-
               const SizedBox(height: 20),
-
-        
-              _compressedImage != null
-                  ? Column(
-                      children: [
-                        const Text('Compressed Image:', style: TextStyle(color: Colors.black)),
-                        Image.file(_compressedImage!, height: 200),
-                      ],
-                    )
-                  : const SizedBox(),
-
-              const SizedBox(height: 20),
-
-          
-              ElevatedButton(
-                onPressed: _pickImage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.lightBlue, 
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10), 
-                  ),
-                  elevation: 5,
-                ),
-                child: const Text(
-                  'Pick Image',
-                  style: TextStyle(color: Colors.white),
+              TextField(
+                controller: _widthController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Width (default: 600)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  fillColor: Colors.white,
+                  filled: true,
                 ),
               ),
-
               const SizedBox(height: 10),
-
-              
-              ElevatedButton(
-                onPressed: _isCompressing ? null : _compressImage, 
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10), 
-                  ),
-                  elevation: 5, 
+              TextField(
+                controller: _heightController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Height (optional)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  fillColor: Colors.white,
+                  filled: true,
                 ),
-                child: _isCompressing
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Compress Image',
-                        style: TextStyle(color: Colors.white),
-                      ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.image, color: Colors.white),
+                label: const Text('Pick Image'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: _isCompressing ? null : _compressImage,
+                icon: const Icon(Icons.compress, color: Colors.white),
+                label: _isCompressing ? const CircularProgressIndicator(color: Colors.white) : const Text('Compress Image'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               ),
             ],
           ),

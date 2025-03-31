@@ -1,153 +1,115 @@
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:image/image.dart' as img;
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
+import 'package:archive/archive.dart';
+import 'dart:convert';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Image Format Converter',
-      theme: ThemeData(
-        primarySwatch: Colors.deepPurple,
-      ),
-      home: ImageConverterPage(),
+      title: 'File Conversion',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const FileConversionPage(),
     );
   }
 }
 
-class ImageConverterPage extends StatefulWidget {
+class FileConversionPage extends StatefulWidget {
+  const FileConversionPage({Key? key}) : super(key: key);
+
   @override
-  _ImageConverterPageState createState() => _ImageConverterPageState();
+  _FileConversionPageState createState() => _FileConversionPageState();
 }
 
-class _ImageConverterPageState extends State<ImageConverterPage> {
-  File? _originalImage;
-  File? _convertedImage;
+class _FileConversionPageState extends State<FileConversionPage> {
+  File? _pickedFile;
+  String? _filePreview;
+  String _statusMessage = "No file selected.";
+  String _convertedDocxFilePath = "";
+  String _docxContent = "";
 
-  final picker = ImagePicker();
+  PDFViewController? _pdfViewController;
 
-  
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _pickPDFFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+      
+      if (result != null && result.files.single.path != null) {
+        final pickedFile = File(result.files.single.path!);
 
-    if (pickedFile != null) {
+        setState(() {
+          _pickedFile = pickedFile;
+          _filePreview = pickedFile.path;
+          _statusMessage = "PDF file selected successfully.";
+          _convertedDocxFilePath = "";
+        });
+      } else {
+        setState(() {
+          _statusMessage = "No PDF file selected.";
+        });
+      }
+    } catch (e) {
       setState(() {
-        _originalImage = File(pickedFile.path);
-        _convertedImage = null; 
+        _statusMessage = "Error picking file: $e";
       });
     }
   }
 
-
-  Future<void> _convertToPng() async {
-    if (_originalImage == null) return;
-
-    final bytes = await _originalImage!.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
-
-    if (image == null) {
-      print("Failed to decode image.");
-      return;
-    }
-
-    
-    final pngBytes = img.encodePng(image);
-    final directory = await getApplicationDocumentsDirectory();
-    final convertedImagePath = '${directory.path}/converted_image.png';
-    final convertedFile = File(convertedImagePath);
-    await convertedFile.writeAsBytes(pngBytes);
-
-    setState(() {
-      _convertedImage = convertedFile;
-    });
-
-    print('Image saved to $convertedImagePath');
-  }
-
-
-  Future<void> _convertToJpg() async {
-    if (_originalImage == null) return;
-
-    
-    final bytes = await _originalImage!.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
-
-    if (image == null) {
-      print("Failed to decode image.");
-      return;
-    }
-
-    
-    final jpgBytes = img.encodeJpg(image);
-    final directory = await getApplicationDocumentsDirectory();
-    final convertedImagePath = '${directory.path}/converted_image.jpg';
-    final convertedFile = File(convertedImagePath);
-    await convertedFile.writeAsBytes(jpgBytes);
-
-    setState(() {
-      _convertedImage = convertedFile;
-    });
-
-    print('Image saved to $convertedImagePath');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Image Format Converter'),
-        backgroundColor: Colors.deepPurple,
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple.shade200, Colors.deepPurple.shade400],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      body: SingleChildScrollView(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: _pickImage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.lightBlue,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                ),
-                child: const Text('Pick an Image', style: TextStyle(color: Colors.white)),
-              ),
-              const SizedBox(height: 20),
-              if (_originalImage != null) ...[
-                const Text("Original Image:"),
-                Image.file(_originalImage!, width: 200, height: 200, fit: BoxFit.cover),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('File Conversion')),
+        body: SingleChildScrollView(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 const SizedBox(height: 20),
-              ],
-              ElevatedButton(
-                onPressed: _convertToPng,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                ElevatedButton(
+                  onPressed: _pickPDFFile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.lightBlue,
+                  ),
+                  child: const Text('Pick a PDF File'),
                 ),
-                child: const Text('Convert to PNG', style: TextStyle(color: Colors.white)),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _convertToJpg,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                const SizedBox(height: 20),
+                if (_pickedFile != null)
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    child: const Text('Convert to DOCX'),
+                  ),
+                const SizedBox(height: 20),
+                Text(
+                  _statusMessage,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w500),
                 ),
-                child: const Text('Convert to JPG', style: TextStyle(color: Colors.white)),
-              ),
-              const SizedBox(height: 20),
-              if (_convertedImage != null) ...[
-                const Text("Converted Image:"),
-                Image.file(_convertedImage!, width: 200, height: 200, fit: BoxFit.cover),
-                const SizedBox(height: 10),
-                Text("Saved to: ${_convertedImage!.path}"),
               ],
-            ],
+            ),
           ),
         ),
       ),
